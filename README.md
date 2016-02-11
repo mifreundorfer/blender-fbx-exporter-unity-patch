@@ -9,4 +9,4 @@
 
 ## Installation
 
-Replace the io_scene_fbx folder in your Blender install with the one from this repository.
+Replace the io_scene_fbx folder in your Blender install with the one from this repository, found here:(Blender install folder)/2.76/scripts/addons/io_scene_fbx
