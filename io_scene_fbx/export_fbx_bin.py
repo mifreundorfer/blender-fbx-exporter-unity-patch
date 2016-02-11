@@ -569,6 +569,24 @@ def fbx_data_empty_elements(root, empty, scene_data):
 
     # No custom properties, already saved with object (Model).
 
+def fbx_data_armature_root_elements(root, armature, scene_data):
+    """
+    Write the Empty data block.
+    """
+    armature_key = scene_data.data_armatures[armature]
+
+    null = elem_data_single_int64(root, b"NodeAttribute", get_fbx_uuid_from_key(armature_key))
+    null.add_string(fbx_name_class(armature.name.encode(), b"NodeAttribute"))
+    null.add_string(b"LimbNode")
+
+    elem_data_single_string(null, b"TypeFlags", b"Null")
+
+    tmpl = elem_props_template_init(scene_data.templates, b"LimbNode")
+    props = elem_properties(null)
+    elem_props_template_finalize(tmpl, props)
+
+    # No custom properties, already saved with object (Model).
+
 
 def fbx_data_lamp_elements(root, lamp, scene_data):
     """
@@ -1558,7 +1576,7 @@ def fbx_data_object_elements(root, ob_obj, scene_data):
         obj_type = b"LimbNode"
     elif (ob_obj.type == 'ARMATURE'):
         #~ obj_type = b"Root"
-        obj_type = b"Null"
+        obj_type = b"LimbNode"
     elif (ob_obj.type in BLENDER_OBJECT_TYPES_MESHLIKE):
         obj_type = b"Mesh"
     elif (ob_obj.type == 'LAMP'):
@@ -1751,7 +1769,7 @@ def fbx_mat_properties_from_texture(tex):
 
 
 def fbx_skeleton_from_armature(scene, settings, arm_obj, objects, data_meshes,
-                               data_bones, data_deformers_skin, data_empties, arm_parents):
+                               data_bones, data_deformers_skin, data_armatures, arm_parents):
     """
     Create skeleton from armature/bones (NodeAttribute/LimbNode and Model/LimbNode), and for each deformed mesh,
     create Pose/BindPose(with sub PoseNode) and Deformer/Skin(with Deformer/SubDeformer/Cluster).
@@ -1759,7 +1777,7 @@ def fbx_skeleton_from_armature(scene, settings, arm_obj, objects, data_meshes,
     arm_parents is a set of tuples (armature, object) for all successful armature bindings.
     """
     # We need some data for our armature 'object' too!!!
-    data_empties[arm_obj] = get_blender_empty_key(arm_obj.bdata)
+    data_armatures[arm_obj] = get_blender_empty_key(arm_obj.bdata)
 
     arm_data = arm_obj.bdata.data
     bones = OrderedDict()
@@ -2229,12 +2247,13 @@ def fbx_data_from_scene(scene, settings):
     # Armatures!
     data_deformers_skin = OrderedDict()
     data_bones = OrderedDict()
+    data_armatures = OrderedDict()
     arm_parents = set()
     for ob_obj in tuple(objects):
         if not (ob_obj.is_object and ob_obj.type in {'ARMATURE'}):
             continue
         fbx_skeleton_from_armature(scene, settings, ob_obj, objects, data_meshes,
-                                   data_bones, data_deformers_skin, data_empties, arm_parents)
+                                   data_bones, data_deformers_skin, data_armatures, arm_parents)
 
     # Generate leaf bones
     data_leaf_bones = []
@@ -2324,7 +2343,7 @@ def fbx_data_from_scene(scene, settings):
         tmp_scdata = FBXExportData(
             None, None, None,
             settings, scene, objects, None, None, 0.0, 0.0,
-            data_empties, data_lamps, data_cameras, data_meshes, None,
+            data_empties, data_armatures, data_lamps, data_cameras, data_meshes, None,
             data_bones, data_leaf_bones, data_deformers_skin, data_deformers_shape,
             data_world, data_materials, data_textures, data_videos,
         )
@@ -2339,6 +2358,9 @@ def fbx_data_from_scene(scene, settings):
 
     if data_empties:
         templates[b"Null"] = fbx_template_def_null(scene, settings, nbr_users=len(data_empties))
+
+    if data_armatures:
+        templates[b"Armature"] = fbx_template_def_null(scene, settings, nbr_users=len(data_armatures))
 
     if data_lamps:
         templates[b"Light"] = fbx_template_def_light(scene, settings, nbr_users=len(data_lamps))
@@ -2445,8 +2467,11 @@ def fbx_data_from_scene(scene, settings):
             elif ob_obj.type == 'CAMERA':
                 cam_key = data_cameras[ob_obj]
                 connections.append((b"OO", get_fbx_uuid_from_key(cam_key), ob_obj.fbx_uuid, None))
-            elif ob_obj.type == 'EMPTY' or ob_obj.type == 'ARMATURE':
+            elif ob_obj.type == 'EMPTY':
                 empty_key = data_empties[ob_obj]
+                connections.append((b"OO", get_fbx_uuid_from_key(empty_key), ob_obj.fbx_uuid, None))
+            elif ob_obj.type == 'ARMATURE':
+                empty_key = data_armatures[ob_obj]
                 connections.append((b"OO", get_fbx_uuid_from_key(empty_key), ob_obj.fbx_uuid, None))
             elif ob_obj.type in BLENDER_OBJECT_TYPES_MESHLIKE:
                 mesh_key, _me, _free = data_meshes[ob_obj]
@@ -2542,7 +2567,7 @@ def fbx_data_from_scene(scene, settings):
     return FBXExportData(
         templates, templates_users, connections,
         settings, scene, objects, animations, animated, frame_start, frame_end,
-        data_empties, data_lamps, data_cameras, data_meshes, mesh_mat_indices,
+        data_empties, data_armatures, data_lamps, data_cameras, data_meshes, mesh_mat_indices,
         data_bones, data_leaf_bones, data_deformers_skin, data_deformers_shape,
         data_world, data_materials, data_textures, data_videos,
     )
@@ -2747,6 +2772,11 @@ def fbx_objects_elements(root, scene_data):
 
     for empty in scene_data.data_empties:
         fbx_data_empty_elements(objects, empty, scene_data)
+
+    perfmon.step("FBX export fetch armatures (%d)..." % len(scene_data.data_empties))
+
+    for armature in scene_data.data_armatures:
+        fbx_data_armature_root_elements(objects, armature, scene_data)
 
     perfmon.step("FBX export fetch lamps (%d)..." % len(scene_data.data_lamps))
 

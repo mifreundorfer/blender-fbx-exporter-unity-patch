@@ -1214,7 +1214,7 @@ FBXExportSettings = namedtuple("FBXExportSettings", (
 FBXExportData = namedtuple("FBXExportData", (
     "templates", "templates_users", "connections",
     "settings", "scene", "objects", "animations", "animated", "frame_start", "frame_end",
-    "data_empties", "data_lamps", "data_cameras", "data_meshes", "mesh_mat_indices",
+    "data_empties", "data_armatures", "data_lamps", "data_cameras", "data_meshes", "mesh_mat_indices",
     "data_bones", "data_leaf_bones", "data_deformers_skin", "data_deformers_shape",
     "data_world", "data_materials", "data_textures", "data_videos",
 ))
