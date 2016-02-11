@@ -721,7 +721,7 @@ class AnimationCurveNodeWrapper:
     """
     __slots__ = (
         'elem_keys', '_keys', 'default_values', 'fbx_group', 'fbx_gname', 'fbx_props',
-        'force_keying', 'force_startend_keying')
+        'force_keying', 'force_startend_keying', 'rest_values')
 
     kinds = {
         'LCL_TRANSLATION': ("Lcl Translation", "T", ("X", "Y", "Z")),
@@ -730,7 +730,7 @@ class AnimationCurveNodeWrapper:
         'SHAPE_KEY': ("DeformPercent", "DeformPercent", ("DeformPercent",)),
     }
 
-    def __init__(self, elem_key, kind, force_keying, force_startend_keying, default_values=...):
+    def __init__(self, elem_key, kind, force_keying, force_startend_keying, default_values=..., rest_values=...):
         self.elem_keys = [elem_key]
         assert(kind in self.kinds)
         self.fbx_group = [self.kinds[kind][0]]
@@ -744,6 +744,12 @@ class AnimationCurveNodeWrapper:
             self.default_values = default_values
         else:
             self.default_values = (0.0) * len(self.fbx_props[0])
+
+        if rest_values is not ...:
+            assert(len(rest_values) == len(self.fbx_props[0]))
+            self.rest_values = rest_values
+        else:
+            self.rest_values = default_values
 
     def __bool__(self):
         # We are 'True' if we do have some validated keyframes...
@@ -780,7 +786,7 @@ class AnimationCurveNodeWrapper:
         min_absdiff_fac = 0.1  # A tenth of reldiff...
         keys = self._keys
 
-        p_currframe, p_key, p_key_write = keys[0]
+        p_currframe, p_key, p_key_write = -1, self.rest_values, [True] * len(self.rest_values)
         p_keyed = list(p_key)
         are_keyed = [False] * len(p_key)
         for currframe, key, key_write in keys:
